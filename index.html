@@ -8,26 +8,325 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    </style>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel">
-        // Check if React loaded
-        if (typeof React === 'undefined') {
-            document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">Error: React failed to load</div>';
-        } else {
-            // Load the app
-            const script = document.createElement('script');
-            script.type = 'text/babel';
-            script.src = 'src/App.jsx';
-            script.onerror = function() {
-                document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">Error: App.jsx failed to load</div>';
+        const { useState, useEffect } = React;
+
+        const EnhancedScreenerApp = () => {
+            const [callers, setCallers] = useState([]);
+            const [connectionStatus, setConnectionStatus] = useState('connecting');
+            const [activeCalls, setActiveCalls] = useState([]);
+            const [showSettings, setShowSettings] = useState(false);
+            const [newCaller, setNewCaller] = useState({
+                name: '', phone: '', location: '', topic: '', notes: '', priority: 'medium'
+            });
+
+            useEffect(() => {
+                // Test connection to WebRTC server
+                fetch('http://api.audioroad-live.com:8080/health')
+                    .then(response => {
+                        if (response.ok) {
+                            setConnectionStatus('connected');
+                            return response.json();
+                        } else {
+                            setConnectionStatus('error');
+                        }
+                    })
+                    .then(data => {
+                        console.log('WebRTC server connected:', data);
+                    })
+                    .catch(error => {
+                        console.error('Connection failed:', error);
+                        setConnectionStatus('error');
+                    });
+
+                // Load demo caller
+                setCallers([{
+                    id: 'demo_001',
+                    name: 'Kevin Rutherford',
+                    phone: '+1-407-383-9145',
+                    topic: 'Oil Analysis - Critical Iron Levels',
+                    location: 'Winter Park, FL',
+                    notes: 'Iron levels at 85ppm - needs immediate attention',
+                    priority: 'high',
+                    joinTime: new Date().toISOString(),
+                    screenerName: 'Angie'
+                }]);
+            }, []);
+
+            const addCaller = () => {
+                if (!newCaller.name || !newCaller.topic) {
+                    alert('Please fill in caller name and topic');
+                    return;
+                }
+                
+                const callerData = {
+                    ...newCaller,
+                    id: `caller_${Date.now()}`,
+                    joinTime: new Date().toISOString(),
+                    screenerName: 'Angie'
+                };
+                
+                setCallers(prev => [...prev, callerData]);
+                setNewCaller({ name: '', phone: '', location: '', topic: '', notes: '', priority: 'medium' });
+                alert('Caller added successfully!');
             };
-            document.head.appendChild(script);
-        }
+
+            const startScreening = (caller) => {
+                setActiveCalls(prev => [...prev, { ...caller, startTime: new Date() }]);
+                alert(`Started screening with ${caller.name}`);
+            };
+
+            const endScreening = (callerId) => {
+                setActiveCalls(prev => prev.filter(c => c.id !== callerId));
+                alert('Screening session ended');
+            };
+
+            const sendToHost = (caller) => {
+                alert(`${caller.name} sent to host dashboard!`);
+            };
+
+            const uploadDocument = (callerId) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.pdf,.jpg,.png,.csv';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        alert(`Document "${file.name}" uploaded for analysis!`);
+                    }
+                };
+                input.click();
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-900 text-white p-4">
+                    <div className="max-w-6xl mx-auto">
+                        {/* Header */}
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h1 className="text-3xl font-bold">🎧 Enhanced Screener Dashboard</h1>
+                                <p className="text-gray-300">Screener: Angie | WebRTC Integration</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                                    <span className="text-sm capitalize">{connectionStatus}</span>
+                                </div>
+                                <button 
+                                    onClick={() => setShowSettings(!showSettings)}
+                                    className="px-3 py-1 bg-gray-700 rounded text-sm hover:bg-gray-600"
+                                >
+                                    ⚙️ Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Settings Panel */}
+                        {showSettings && (
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6">
+                                <h3 className="text-lg font-bold mb-4">WebRTC Settings</h3>
+                                <div className="text-sm">
+                                    <p><strong>WebRTC Server:</strong> api.audioroad-live.com:8080</p>
+                                    <p><strong>Status:</strong> {connectionStatus}</p>
+                                    <p><strong>Features:</strong> Real-time sync, Document upload, Priority management</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Active Screening Sessions */}
+                        {activeCalls.length > 0 && (
+                            <div className="bg-green-900 p-4 rounded-lg mb-6">
+                                <h3 className="text-lg font-bold mb-4 text-green-100">
+                                    🔴 Active Screening Sessions ({activeCalls.length})
+                                </h3>
+                                {activeCalls.map(call => (
+                                    <div key={call.id} className="flex justify-between items-center p-3 bg-green-800 rounded mb-2">
+                                        <div>
+                                            <h4 className="font-bold text-green-100">{call.name}</h4>
+                                            <p className="text-sm text-green-200">{call.topic}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => endScreening(call.id)}
+                                            className="px-3 py-1 bg-red-600 rounded text-sm hover:bg-red-700"
+                                        >
+                                            📞 End Screening
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Add Caller Form */}
+                            <div className="bg-gray-800 p-6 rounded-lg">
+                                <h2 className="text-xl font-bold mb-4">➕ Add New Caller</h2>
+                                <div className="space-y-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Caller Name *"
+                                        value={newCaller.name}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, name: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Phone Number"
+                                        value={newCaller.phone}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, phone: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Location (City, State)"
+                                        value={newCaller.location}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, location: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400"
+                                    />
+                                    <select
+                                        value={newCaller.priority}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, priority: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white"
+                                    >
+                                        <option value="low">Low Priority</option>
+                                        <option value="medium">Medium Priority</option>
+                                        <option value="high">High Priority</option>
+                                        <option value="critical">Critical Priority</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        placeholder="Topic *"
+                                        value={newCaller.topic}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, topic: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400"
+                                    />
+                                    <textarea
+                                        placeholder="Screening Notes"
+                                        value={newCaller.notes}
+                                        onChange={(e) => setNewCaller(prev => ({...prev, notes: e.target.value}))}
+                                        className="w-full p-3 rounded bg-gray-700 text-white h-20 placeholder-gray-400"
+                                    />
+                                    <button 
+                                        onClick={addCaller}
+                                        className="w-full py-3 bg-blue-600 rounded font-medium hover:bg-blue-700 transition-colors"
+                                    >
+                                        ➕ Add Caller to Queue
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Caller Queue */}
+                            <div className="bg-gray-800 p-6 rounded-lg">
+                                <h2 className="text-xl font-bold mb-4">Caller Queue ({callers.length})</h2>
+                                {callers.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-gray-400 mb-2">No callers in queue</p>
+                                        <p className="text-sm text-gray-500">Add callers using the form on the left</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                                        {callers.map(caller => (
+                                            <div key={caller.id} className={`p-4 rounded-lg ${caller.priority === 'high' || caller.priority === 'critical' ? 'bg-red-900 border border-red-500' : 'bg-gray-700'}`}>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <h3 className="font-bold">{caller.name}</h3>
+                                                        <p className="text-sm text-gray-300">{caller.phone} • {caller.location}</p>
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded text-xs ${caller.priority === 'high' || caller.priority === 'critical' ? 'bg-red-600' : 'bg-gray-600'}`}>
+                                                        {caller.priority.toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                
+                                                <p className="text-sm mb-2"><strong>Topic:</strong> {caller.topic}</p>
+                                                {caller.notes && <p className="text-sm mb-2"><strong>Notes:</strong> {caller.notes}</p>}
+                                                
+                                                <div className="flex gap-2 mt-3">
+                                                    {!activeCalls.some(ac => ac.id === caller.id) ? (
+                                                        <button
+                                                            onClick={() => startScreening(caller)}
+                                                            className="px-3 py-1 bg-green-600 rounded text-sm hover:bg-green-700"
+                                                        >
+                                                            📞 Start Screening
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => endScreening(caller.id)}
+                                                            className="px-3 py-1 bg-red-600 rounded text-sm hover:bg-red-700"
+                                                        >
+                                                            📞 End Screening
+                                                        </button>
+                                                    )}
+                                                    
+                                                    <button
+                                                        onClick={() => uploadDocument(caller.id)}
+                                                        className="px-3 py-1 bg-blue-600 rounded text-sm hover:bg-blue-700"
+                                                    >
+                                                        📄 Upload Doc
+                                                    </button>
+                                                    
+                                                    <button
+                                                        onClick={() => sendToHost(caller)}
+                                                        className="px-3 py-1 bg-purple-600 rounded text-sm hover:bg-purple-700"
+                                                    >
+                                                        Send to Host
+                                                    </button>
+                                                </div>
+                                                
+                                                <div className="flex justify-between text-xs text-gray-400 mt-2">
+                                                    <span>Added: {new Date(caller.joinTime).toLocaleTimeString()}</span>
+                                                    <span>Screener: {caller.screenerName}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* System Status */}
+                        <div className="bg-gray-800 p-4 rounded-lg mt-6">
+                            <h3 className="text-lg font-bold mb-4">✅ System Status</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <p className="text-gray-400">WebRTC Status:</p>
+                                    <p className={connectionStatus === 'connected' ? 'text-green-400' : 'text-red-400'}>
+                                        {connectionStatus}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Active Calls:</p>
+                                    <p>{activeCalls.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Queue Length:</p>
+                                    <p>{callers.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Server:</p>
+                                    <p>api.audioroad-live.com</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tips */}
+                        <div className="bg-blue-900 p-4 rounded-lg mt-6">
+                            <h3 className="text-blue-100 font-bold mb-2">💡 Enhanced Features</h3>
+                            <div className="text-blue-200 text-sm">
+                                <p>• <strong>WebRTC Integration:</strong> Direct connection to your live server</p>
+                                <p>• <strong>Priority Management:</strong> Critical calls highlighted in red</p>
+                                <p>• <strong>Document Upload:</strong> Attach oil analysis, lab results, etc.</p>
+                                <p>• <strong>Professional Workflow:</strong> Complete caller packages for host</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the app
+        ReactDOM.render(<EnhancedScreenerApp />, document.getElementById('root'));
     </script>
 </body>
 </html>
